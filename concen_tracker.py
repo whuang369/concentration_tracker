@@ -103,7 +103,7 @@ C = 70  # Threshold score
 T = 10  # Threshold time in seconds
 low_concentration_start_time = None
 alert_shown = False
-å
+
 while True:
     ret, frame = cap.read()
     if not ret:
