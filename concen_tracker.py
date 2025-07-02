@@ -5,6 +5,8 @@ import time
 from collections import deque
 from mediapipe.python.solutions.drawing_utils import DrawingSpec
 
+import os
+
 # mp_face = mp.solutions.face_detection
 # face_detection = mp_face.FaceDetection(min_detection_confidence=0.5)
 mp_face_mesh = mp.solutions.face_mesh
@@ -16,6 +18,10 @@ RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
 score_history = deque(maxlen=10)
 distraction = 0
+
+
+def play_alert_sound():
+    os.system("afplay /System/Library/Sounds/Glass.aiff")
 
 def eye_aspect_ratio(landmarks, eye_points, image_w, image_h):
     p = []
@@ -80,9 +86,24 @@ def bar(score, frame):
                (bar_x + bar_width + 10, bar_y + bar_height//2 + 5),
                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
 
+def show_alert():
+    alert_frame = np.zeros((200, 400, 3), dtype=np.uint8)
+    cv2.putText(alert_frame, "Low Concentration!", (50, 100),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+    for _ in range(100):  # Show for ~3 seconds (100 frames at 30 fps)
+        cv2.imshow("ALERT", alert_frame)
+        if cv2.waitKey(30) & 0xFF == ord('q'):
+            break
+    cv2.destroyWindow("ALERT")
+
 cap = cv2.VideoCapture(0)
 blink_counter = 0
 
+C = 70  # Threshold score
+T = 10  # Threshold time in seconds
+low_concentration_start_time = None
+alert_shown = False
+å
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -148,6 +169,19 @@ while True:
     #         cv2.rectangle(frame, (x, y), (x + w, y + 20), (0, 200, 0), -1)
     #         cv2.putText(frame, "FACE DETECTED", (x + 5, y + 15), 
     #                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+    current_time = time.time()
+
+    if smooth_score < C:
+        if low_concentration_start_time is None:
+            low_concentration_start_time = current_time
+        elif (current_time - low_concentration_start_time) > T and not alert_shown:
+            alert_shown = True
+            show_alert()
+            play_alert_sound()
+    else:
+        low_concentration_start_time = None
+        alert_shown = False
     
     fps = cap.get(cv2.CAP_PROP_FPS)
     cv2.putText(frame, f"FPS: {fps:.1f}", (image_w - 120, 30),
